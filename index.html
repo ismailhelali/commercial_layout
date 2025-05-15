@@ -104,6 +104,11 @@
         #addProduct:hover {
             background-color: #218838;
         }
+        .error {
+            color: #dc3545;
+            font-size: 14px;
+            margin-top: 5px;
+        }
         @media print {
             body {
                 margin: 0;
@@ -135,10 +140,11 @@
             const allValid = productEntries.every(entry => {
                 const hasName = entry.nameInput.value.trim() !== '';
                 const hasDescription = entry.descriptionInput.value.trim() !== '';
-                const hasImage = entry.imageFile !== null;
+                const hasImage = entry.imageData !== null;
                 return hasName && hasDescription && hasImage;
             });
             generatePDFButton.disabled = !allValid || productEntries.length === 0;
+            console.log('Validation:', { allValid, productCount: productEntries.length });
         }
 
         // Add a new product entry
@@ -159,6 +165,7 @@
                     <label>Product Image</label>
                     <input type="file" class="product-image" accept="image/*">
                     <div class="preview-container"></div>
+                    <div class="error" style="display: none;"></div>
                 </div>
             `;
 
@@ -166,25 +173,43 @@
             const descriptionInput = entryDiv.querySelector('.product-description');
             const imageInput = entryDiv.querySelector('.product-image');
             const previewContainer = entryDiv.querySelector('.preview-container');
+            const errorContainer = entryDiv.querySelector('.error');
             const removeBtn = entryDiv.querySelector('.remove-btn');
 
-            let imageFile = null;
+            let imageData = null;
 
             // Handle image upload and preview
             imageInput.addEventListener('change', (event) => {
                 const file = event.target.files[0];
+                errorContainer.style.display = 'none';
                 if (file) {
-                    imageFile = file;
+                    if (!file.type.startsWith('image/')) {
+                        errorContainer.textContent = 'Please upload a valid image file.';
+                        errorContainer.style.display = 'block';
+                        imageData = null;
+                        previewContainer.innerHTML = '';
+                        validateInputs();
+                        return;
+                    }
                     const reader = new FileReader();
                     reader.onload = (e) => {
-                        previewContainer.innerHTML = `<img src="${e.target.result}" alt="Preview">`;
+                        imageData = e.target.result;
+                        previewContainer.innerHTML = `<img src="${imageData}" alt="Preview">`;
+                        validateInputs();
+                    };
+                    reader.onerror = () => {
+                        errorContainer.textContent = 'Error reading image file.';
+                        errorContainer.style.display = 'block';
+                        imageData = null;
+                        previewContainer.innerHTML = '';
+                        validateInputs();
                     };
                     reader.readAsDataURL(file);
                 } else {
-                    imageFile = null;
+                    imageData = null;
                     previewContainer.innerHTML = '';
+                    validateInputs();
                 }
-                validateInputs();
             });
 
             // Handle input changes
@@ -199,7 +224,7 @@
             });
 
             productList.appendChild(entryDiv);
-            productEntries.push({ div: entryDiv, nameInput, descriptionInput, imageInput, imageFile });
+            productEntries.push({ div: entryDiv, nameInput, descriptionInput, imageInput, imageData });
             validateInputs();
         }
 
@@ -208,6 +233,7 @@
 
         // Generate PDF
         generatePDFButton.addEventListener('click', async () => {
+            console.log('Generating PDF...');
             const doc = new jsPDF({
                 orientation: 'portrait',
                 unit: 'mm',
@@ -235,6 +261,11 @@
             // Process each product
             for (let i = 0; i < productEntries.length; i++) {
                 const entry = productEntries[i];
+                console.log(`Processing product ${i + 1}:`, {
+                    name: entry.nameInput.value,
+                    description: entry.descriptionInput.value,
+                    hasImage: !!entry.imageData
+                });
 
                 // Add new page if needed
                 if (yPosition > pageHeight - 60) {
@@ -264,24 +295,18 @@
                 yPosition += 5;
 
                 // Product Image
-                if (entry.imageFile) {
-                    const imgData = await new Promise((resolve) => {
-                        const reader = new FileReader();
-                        reader.onload = () => resolve(reader.result);
-                        reader.readAsDataURL(entry.imageFile);
-                    });
-
-                    const imageWidth = 60;
-                    const imageHeight = 45;
+                if (entry.imageData) {
                     try {
+                        const imageWidth = 60;
+                        const imageHeight = 45;
                         if (yPosition + imageHeight > pageHeight - 20) {
                             doc.addPage();
                             yPosition = margin;
                         }
-                        doc.addImage(imgData, 'JPEG', margin, yPosition, imageWidth, imageHeight);
+                        doc.addImage(entry.imageData, 'JPEG', margin, yPosition, imageWidth, imageHeight);
                         yPosition += imageHeight + 10;
                     } catch (error) {
-                        console.error('Error adding image to PDF:', error);
+                        console.error(`Error adding image for product ${i + 1}:`, error);
                     }
                 }
 
@@ -301,6 +326,7 @@
             doc.text('Generated by Product PDF Generator', pageWidth / 2, pageHeight - margin, { align: 'center' });
 
             // Save PDF
+            console.log('Saving PDF...');
             doc.save('product_catalog.pdf');
         });
 
