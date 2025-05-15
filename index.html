@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product PDF Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        .form-container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input[type="text"],
+        textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        input[type="file"] {
+            padding: 5px;
+        }
+        .preview-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .preview-container img {
+            max-width: 100px;
+            max-height: 100px;
+            object-fit: cover;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        @media print {
+            body {
+                margin: 0;
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Product PDF Generator</h1>
+    <div class="form-container">
+        <div class="form-group">
+            <label for="productName">Product Name</label>
+            <input type="text" id="productName" placeholder="Enter product name" required>
+        </div>
+        <div class="form-group">
+            <label for="productDescription">Product Description</label>
+            <textarea id="productDescription" placeholder="Enter product description" required></textarea>
+        </div>
+        <div class="form-group">
+            <label for="productImages">Upload Product Images</label>
+            <input type="file" id="productImages" accept="image/*" multiple>
+            <div class="preview-container" id="imagePreview"></div>
+        </div>
+        <button id="generatePDF" disabled>Generate PDF</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script>
+        const { jsPDF } = window.jspdf;
+        const productNameInput = document.getElementById('productName');
+        const productDescriptionInput = document.getElementById('productDescription');
+        const productImagesInput = document.getElementById('productImages');
+        const imagePreview = document.getElementById('imagePreview');
+        const generatePDFButton = document.getElementById('generatePDF');
+        let imageFiles = [];
+
+        // Enable/disable button based on input validation
+        function validateInputs() {
+            const hasName = productNameInput.value.trim() !== '';
+            const hasDescription = productDescriptionInput.value.trim() !== '';
+            const hasImages = imageFiles.length > 0;
+            generatePDFButton.disabled = !(hasName && hasDescription && hasImages);
+        }
+
+        // Handle image uploads and preview
+        productImagesInput.addEventListener('change', (event) => {
+            imageFiles = Array.from(event.target.files);
+            imagePreview.innerHTML = '';
+            imageFiles.forEach((file, index) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    img.alt = `Preview ${index + 1}`;
+                    imagePreview.appendChild(img);
+                };
+                reader.readAsDataURL(file);
+            });
+            validateInputs();
+        });
+
+        // Validate inputs on change
+        productNameInput.addEventListener('input', validateInputs);
+        productDescriptionInput.addEventListener('input', validateInputs);
+
+        // Generate PDF
+        generatePDFButton.addEventListener('click', async () => {
+            const doc = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4'
+            });
+
+            // PDF Styling
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
+            const margin = 15;
+            let yPosition = margin;
+
+            // Header
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(24);
+            doc.setTextColor(0, 51, 102);
+            doc.text('Product Specification', pageWidth / 2, yPosition, { align: 'center' });
+            yPosition += 10;
+
+            // Divider
+            doc.setLineWidth(0.5);
+            doc.setDrawColor(0, 51, 102);
+            doc.line(margin, yPosition, pageWidth - margin, yPosition);
+            yPosition += 10;
+
+            // Product Name
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(16);
+            doc.setTextColor(0, 0, 0 Chadwick);
+            doc.text('Product Name:', margin, yPosition);
+            yPosition += 7;
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(12);
+            const productNameLines = doc.splitTextToSize(productNameInput.value, pageWidth - 2 * margin);
+            productNameLines.forEach(line => {
+                doc.text(line, margin, yPosition);
+                yPosition += 6;
+            });
+            yPosition += 5;
+
+            // Product Description
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(16);
+            doc.text('Description:', margin, yPosition);
+            yPosition += 7;
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(12);
+            const descriptionLines = doc.splitTextToSize(productDescriptionInput.value, pageWidth - 2 * margin);
+            description 
+            descriptionLines.forEach(line => {
+                doc.text(line, margin, yPosition);
+                yPosition += 6;
+            });
+            yPosition += 10;
+
+            // Images
+            if (imageFiles.length > 0) {
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(16);
+                doc.text('Product Images:', margin, yPosition);
+                yPosition += 7;
+
+                const maxImagesPerRow = 3;
+                const imageWidth = (pageWidth - 2 * margin - 10 * (maxImagesPerRow - 1)) / maxImagesPerRow;
+                const imageHeight = imageWidth * 0.75;
+
+                for (let i = 0; i < imageFiles.length; i++) {
+                    const imgData = await new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result);
+                        reader.readAsDataURL(imageFiles[i]);
+                    });
+
+                    const x = margin + (i % maxImagesPerRow) * (imageWidth + 10);
+                    const y = yPosition + Math.floor(i / maxImagesPerRow) * (imageHeight + 10);
+
+                    try {
+                        doc.addImage(imgData, 'JPEG', x, y, imageWidth, imageHeight);
+                    } catch (error) {
+                        console.error('Error adding image to PDF:', error);
+                    }
+                }
+                yPosition += Math.ceil(imageFiles.length / maxImagesPerRow) * (imageHeight + 10);
+            }
+
+            // Footer
+            doc.setFont('helvetica', 'italic');
+            doc.setFontSize(10);
+            doc.setTextColor(100, 100, 100);
+            doc.text('Generated by Product PDF Generator', pageWidth / 2, pageHeight - margin, { align: 'center' });
+
+            // Save PDF
+            doc.save(`${productNameInput.value || 'product'}_spec.pdf`);
+        });
+    </script>
+</body>
+</html>
