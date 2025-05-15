@@ -7,7 +7,7 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 800px;
+            max-width sonho: 800px;
             margin: 20px auto;
             padding: 20px;
             background-color: #f5f5f5;
@@ -109,6 +109,16 @@
             font-size: 14px;
             margin-top: 5px;
         }
+        .status-message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .status-message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
         @media print {
             body {
                 margin: 0;
@@ -124,6 +134,7 @@
             <button id="addProduct">Add Product</button>
             <button id="generatePDF" disabled>Generate PDF</button>
         </div>
+        <div id="statusMessage" class="status-message error" style="display: none;"></div>
         <div id="productList"></div>
     </div>
 
@@ -133,25 +144,48 @@
         const productList = document.getElementById('productList');
         const addProductButton = document.getElementById('addProduct');
         const generatePDFButton = document.getElementById('generatePDF');
+        const statusMessage = document.getElementById('statusMessage');
         let productEntries = [];
+
+        // Update status message
+        function updateStatusMessage(message, isError = false) {
+            statusMessage.textContent = message;
+            statusMessage.style.display = message ? 'block' : 'none';
+            statusMessage.className = `status-message ${isError ? 'error' : ''}`;
+        }
 
         // Validate all product entries
         function validateInputs() {
-            const allValid = productEntries.every(entry => {
+            const validationIssues = [];
+            const allValid = productEntries.every((entry, index) => {
                 const hasName = entry.nameInput.value.trim() !== '';
                 const hasDescription = entry.descriptionInput.value.trim() !== '';
-                const hasImage = entry.imageData !== null && entry.imageData !== '';
+                const hasImage = entry.imageData && typeof entry.imageData === 'string' && entry.imageData.startsWith('data:image/');
+                if (!hasName) validationIssues.push(`Product ${index + 1}: Missing name`);
+                if (!hasDescription) validationIssues.push(`Product ${index + 1}: Missing description`);
+                if (!hasImage) validationIssues.push(`Product ${index + 1}: Missing or invalid image`);
                 return hasName && hasDescription && hasImage;
             });
+
             generatePDFButton.disabled = !allValid || productEntries.length === 0;
+            if (!allValid && productEntries.length > 0) {
+                updateStatusMessage(`Cannot generate PDF: ${validationIssues.join(', ')}`, true);
+            } else if (productEntries.length === 0) {
+                updateStatusMessage('Add at least one product to generate PDF', true);
+            } else {
+                updateStatusMessage('');
+            }
+
             console.log('Validation check:', {
                 allValid,
                 productCount: productEntries.length,
-                entries: productEntries.map(e => ({
+                entries: productEntries.map((e, i) => ({
                     name: e.nameInput.value,
                     description: e.descriptionInput.value,
-                    hasImage: !!e.imageData
-                }))
+                    hasImage: !!e.imageData,
+                    imageValid: e.imageData && e.imageData.startsWith('data:image/')
+                })),
+                issues: validationIssues
             });
         }
 
@@ -210,7 +244,12 @@
                     reader.onload = (e) => {
                         imageData = e.target.result;
                         previewContainer.innerHTML = `<img src="${imageData}" alt="Preview">`;
-                        console.log('Image loaded:', file.name, 'Size:', file.size);
+                        console.log('Image loaded:', file.name, 'Size:', file.size, 'Type:', file.type);
+                        // Update the entry's imageData
+                        const entry = productEntries.find(e => e.div === entryDiv);
+                        if (entry) {
+                            entry.imageData = imageData;
+                        }
                         validateInputs();
                     };
                     reader.onerror = () => {
@@ -320,7 +359,7 @@
                                 yPosition = margin;
                             }
                             console.log(`Adding image for product ${i + 1}`);
-                            doc.addImage(entry.imageData, 'JPEG', margin, yPosition, imageWidth, imageHeight);
+                            doc.addImage(entry.imageData, entry.imageData.startsWith('data:image/png') ? 'PNG' : 'JPEG', margin, yPosition, imageWidth, imageHeight);
                             yPosition += imageHeight + 10;
                         } catch (error) {
                             console.error(`Error adding image for product ${i + 1}:`, error);
@@ -355,9 +394,11 @@
                 // Save PDF
                 console.log('Saving PDF...');
                 doc.save('product_catalog.pdf');
+                updateStatusMessage('PDF generated successfully!', false);
             } catch (error) {
                 console.error('PDF generation failed:', error);
-                alert('Failed to generate PDF. Please check the console for errors and ensure all images are valid JPG or PNG files.');
+                updateStatusMessage('Failed to generate PDF. Check console for details.', true);
+                alert('Failed to generate PDF. Please check the console (F12) for errors and ensure all images are valid JPG or PNG files.');
             }
         });
 
