@@ -140,11 +140,19 @@
             const allValid = productEntries.every(entry => {
                 const hasName = entry.nameInput.value.trim() !== '';
                 const hasDescription = entry.descriptionInput.value.trim() !== '';
-                const hasImage = entry.imageData !== null;
+                const hasImage = entry.imageData !== null && entry.imageData !== '';
                 return hasName && hasDescription && hasImage;
             });
             generatePDFButton.disabled = !allValid || productEntries.length === 0;
-            console.log('Validation:', { allValid, productCount: productEntries.length });
+            console.log('Validation check:', {
+                allValid,
+                productCount: productEntries.length,
+                entries: productEntries.map(e => ({
+                    name: e.nameInput.value,
+                    description: e.descriptionInput.value,
+                    hasImage: !!e.imageData
+                }))
+            });
         }
 
         // Add a new product entry
@@ -163,7 +171,7 @@
                 </div>
                 <div class="form-group">
                     <label>Product Image</label>
-                    <input type="file" class="product-image" accept="image/*">
+                    <input type="file" class="product-image" accept="image/jpeg,image/png">
                     <div class="preview-container"></div>
                     <div class="error" style="display: none;"></div>
                 </div>
@@ -182,12 +190,19 @@
             imageInput.addEventListener('change', (event) => {
                 const file = event.target.files[0];
                 errorContainer.style.display = 'none';
+                previewContainer.innerHTML = '';
+                imageData = null;
+
                 if (file) {
-                    if (!file.type.startsWith('image/')) {
-                        errorContainer.textContent = 'Please upload a valid image file.';
+                    if (!file.type.match('image/jpeg|image/png')) {
+                        errorContainer.textContent = 'Please upload a valid JPG or PNG image.';
                         errorContainer.style.display = 'block';
-                        imageData = null;
-                        previewContainer.innerHTML = '';
+                        validateInputs();
+                        return;
+                    }
+                    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+                        errorContainer.textContent = 'Image size exceeds 5MB. Please upload a smaller file.';
+                        errorContainer.style.display = 'block';
                         validateInputs();
                         return;
                     }
@@ -195,19 +210,17 @@
                     reader.onload = (e) => {
                         imageData = e.target.result;
                         previewContainer.innerHTML = `<img src="${imageData}" alt="Preview">`;
+                        console.log('Image loaded:', file.name, 'Size:', file.size);
                         validateInputs();
                     };
                     reader.onerror = () => {
                         errorContainer.textContent = 'Error reading image file.';
                         errorContainer.style.display = 'block';
                         imageData = null;
-                        previewContainer.innerHTML = '';
                         validateInputs();
                     };
                     reader.readAsDataURL(file);
                 } else {
-                    imageData = null;
-                    previewContainer.innerHTML = '';
                     validateInputs();
                 }
             });
@@ -233,101 +246,119 @@
 
         // Generate PDF
         generatePDFButton.addEventListener('click', async () => {
-            console.log('Generating PDF...');
-            const doc = new jsPDF({
-                orientation: 'portrait',
-                unit: 'mm',
-                format: 'a4'
-            });
-
-            const pageWidth = doc.internal.pageSize.getWidth();
-            const pageHeight = doc.internal.pageSize.getHeight();
-            const margin = 15;
-            let yPosition = margin;
-
-            // Header
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(24);
-            doc.setTextColor(0, 51, 102);
-            doc.text('Product Catalog', pageWidth / 2, yPosition, { align: 'center' });
-            yPosition += 10;
-
-            // Divider
-            doc.setLineWidth(0.5);
-            doc.setDrawColor(0, 51, 102);
-            doc.line(margin, yPosition, pageWidth - margin, yPosition);
-            yPosition += 10;
-
-            // Process each product
-            for (let i = 0; i < productEntries.length; i++) {
-                const entry = productEntries[i];
-                console.log(`Processing product ${i + 1}:`, {
-                    name: entry.nameInput.value,
-                    description: entry.descriptionInput.value,
-                    hasImage: !!entry.imageData
+            console.log('Starting PDF generation...');
+            try {
+                const doc = new jsPDF({
+                    orientation: 'portrait',
+                    unit: 'mm',
+                    format: 'a4'
                 });
 
-                // Add new page if needed
-                if (yPosition > pageHeight - 60) {
-                    doc.addPage();
-                    yPosition = margin;
-                }
+                const pageWidth = doc.internal.pageSize.getWidth();
+                const pageHeight = doc.internal.pageSize.getHeight();
+                const margin = 15;
+                let yPosition = margin;
 
-                // Product Name
+                // Header
                 doc.setFont('helvetica', 'bold');
-                doc.setFontSize(16);
-                doc.setTextColor(0, 0, 0);
-                doc.text(`Product ${i + 1}: ${entry.nameInput.value}`, margin, yPosition);
-                yPosition += 7;
+                doc.setFontSize(24);
+                doc.setTextColor(0, 51, 102);
+                doc.text('Product Catalog', pageWidth / 2, yPosition, { align: 'center' });
+                yPosition += 10;
 
-                // Product Description
-                doc.setFont('helvetica', 'normal');
-                doc.setFontSize(12);
-                const descriptionLines = doc.splitTextToSize(entry.descriptionInput.value, pageWidth - 2 * margin);
-                descriptionLines.forEach(line => {
-                    if (yPosition > pageHeight - 20) {
+                // Divider
+                doc.setLineWidth(0.5);
+                doc.setDrawColor(0, 51, 102);
+                doc.line(margin, yPosition, pageWidth - margin, yPosition);
+                yPosition += 10;
+
+                // Process each product
+                for (let i = 0; i < productEntries.length; i++) {
+                    const entry = productEntries[i];
+                    console.log(`Processing product ${i + 1}:`, {
+                        name: entry.nameInput.value,
+                        description: entry.descriptionInput.value,
+                        hasImage: !!entry.imageData
+                    });
+
+                    // Add new page if needed
+                    if (yPosition > pageHeight - 80) {
                         doc.addPage();
                         yPosition = margin;
                     }
-                    doc.text(line, margin, yPosition);
-                    yPosition += 6;
-                });
-                yPosition += 5;
 
-                // Product Image
-                if (entry.imageData) {
-                    try {
-                        const imageWidth = 60;
-                        const imageHeight = 45;
-                        if (yPosition + imageHeight > pageHeight - 20) {
+                    // Product Name
+                    doc.setFont('helvetica', 'bold');
+                    doc.setFontSize(16);
+                    doc.setTextColor(0, 0, 0);
+                    const productName = entry.nameInput.value || `Product ${i + 1}`;
+                    doc.text(`Product ${i + 1}: ${productName}`, margin, yPosition);
+                    yPosition += 7;
+
+                    // Product Description
+                    doc.setFont('helvetica', 'normal');
+                    doc.setFontSize(12);
+                    const description = entry.descriptionInput.value || 'No description provided.';
+                    const descriptionLines = doc.splitTextToSize(description, pageWidth - 2 * margin);
+                    descriptionLines.forEach(line => {
+                        if (yPosition > pageHeight - 20) {
                             doc.addPage();
                             yPosition = margin;
                         }
-                        doc.addImage(entry.imageData, 'JPEG', margin, yPosition, imageWidth, imageHeight);
-                        yPosition += imageHeight + 10;
-                    } catch (error) {
-                        console.error(`Error adding image for product ${i + 1}:`, error);
+                        doc.text(line, margin, yPosition);
+                        yPosition += 6;
+                    });
+                    yPosition += 5;
+
+                    // Product Image
+                    if (entry.imageData) {
+                        try {
+                            const imageWidth = 60;
+                            const imageHeight = 45;
+                            if (yPosition + imageHeight > pageHeight - 20) {
+                                doc.addPage();
+                                yPosition = margin;
+                            }
+                            console.log(`Adding image for product ${i + 1}`);
+                            doc.addImage(entry.imageData, 'JPEG', margin, yPosition, imageWidth, imageHeight);
+                            yPosition += imageHeight + 10;
+                        } catch (error) {
+                            console.error(`Error adding image for product ${i + 1}:`, error);
+                            doc.setFontSize(12);
+                            doc.setTextColor(255, 0, 0);
+                            doc.text(`[Image could not be loaded]`, margin, yPosition);
+                            yPosition += 10;
+                        }
+                    } else {
+                        console.warn(`No image data for product ${i + 1}`);
+                        doc.setFontSize(12);
+                        doc.setTextColor(255, 0, 0);
+                        doc.text(`[No image provided]`, margin, yPosition);
+                        yPosition += 10;
+                    }
+
+                    // Divider between products
+                    if (i < productEntries.length - 1) {
+                        doc.setLineWidth(0.2);
+                        doc.setDrawColor(150, 150, 150);
+                        doc.line(margin, yPosition, pageWidth - margin, yPosition);
+                        yPosition += 5;
                     }
                 }
 
-                // Divider between products
-                if (i < productEntries.length - 1) {
-                    doc.setLineWidth(0.2);
-                    doc.setDrawColor(150, 150, 150);
-                    doc.line(margin, yPosition, pageWidth - margin, yPosition);
-                    yPosition += 5;
-                }
+                // Footer
+                doc.setFont('helvetica', 'italic');
+                doc.setFontSize(10);
+                doc.setTextColor(100, 100, 100);
+                doc.text('Generated by Product PDF Generator', pageWidth / 2, pageHeight - margin, { align: 'center' });
+
+                // Save PDF
+                console.log('Saving PDF...');
+                doc.save('product_catalog.pdf');
+            } catch (error) {
+                console.error('PDF generation failed:', error);
+                alert('Failed to generate PDF. Please check the console for errors and ensure all images are valid JPG or PNG files.');
             }
-
-            // Footer
-            doc.setFont('helvetica', 'italic');
-            doc.setFontSize(10);
-            doc.setTextColor(100, 100, 100);
-            doc.text('Generated by Product PDF Generator', pageWidth / 2, pageHeight - margin, { align: 'center' });
-
-            // Save PDF
-            console.log('Saving PDF...');
-            doc.save('product_catalog.pdf');
         });
 
         // Initialize with one product entry
